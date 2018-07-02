@@ -1,6 +1,7 @@
 <?php
     require_once dirname(__FILE__) . '/cron.php';
     InfoPrefix(__FILE__);
+    $time = time();
 
     function verifyEventTable($dev_id) {
         global $PGA;
@@ -9,7 +10,20 @@
                                 WHERE relname = :i AND reltype > 0")
                     ->bind('i', "events_{$dev_id}")
                     ->execute_scalar();
-        return $has > 0;
+        if(!$has) {
+            $PGA->prepare("CREATE TABLE IF NOT EXISTS device_data.events_{$dev_id} ( CHECK (device_id = {$dev_id} ), PRIMARY KEY (_id),
+                    CONSTRAINT \"OUT_KEY_{$dev_id}\"
+                        FOREIGN KEY (device_id) REFERENCES devices (_id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE
+                    ) INHERITS (device_data.events);")->execute();
+
+            $PGA->prepare("GRANT SELECT ON TABLE device_data.events_{$dev_id} TO userviewer;'")->execute();
+            $PGA->prepare("CREATE INDEX \"EVENTS__ID_idx_{$dev_id}\" ON device_data.events_{$dev_id} USING btree (_id );")->execute();
+            $PGA->prepare("CREATE INDEX \"EVENTS__device_id_idx_{$dev_id}\" ON device_data.events_{$dev_id} USING btree (device_id );")->execute();
+            $PGA->prepare("CREATE INDEX \"EVENTS__device_id_when1_idx_{$dev_id}\" ON device_data.events_{$dev_id} USING btree (device_id , when1 );")->execute();
+            $PGA->prepare("CREATE INDEX \"EVENTS_time_stamp_idx_{$dev_id}\" ON device_data.events_{$dev_id} USING btree (time_stamp );")->execute();
+            $PGA->prepare("CREATE INDEX \"EVENTS_when1_idx_{$dev_id}\" ON device_data.events_{$dev_id} USING btree (when1 );")->execute();
+            $PGA->prepare("GRANT SELECT ON TABLE device_data.events_{$dev_id} TO userviewer;'")->execute();
+        }
     }
 
     function verifyInputTable($inp) {
@@ -42,8 +56,6 @@
     Info('pg_restore');
     exec("/usr/pgsql-9.6/bin/pg_restore -h $dst -p 5432 -U gpsprivatagro -d postgres --clean -F t -n public $out");
 
-    die("Stop\n");
-
     // Read devices
     $devices = $PGF->prepare("SELECT _id FROM devices ORDER BY _id")
                     ->execute_all();
@@ -60,10 +72,7 @@
             ->bind('e', $sEnd)
             ->execute();
 
-        if(!verifyEventTable($id)) {
-            echo "No event table";
-            continue;
-        }
+        verifyEventTable($id);
 
         // Inputs list
         $inputs = [];
@@ -132,7 +141,7 @@
                 echo "-";
             }
         }
+        break;
     }
 
-    echo "Found " . count($devices) . " devices.\n";
-    echo "Error " . $PGF->error . "\n";
+    echo "\nFinish within " . (time() - $time) . " sec.\n";
