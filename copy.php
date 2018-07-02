@@ -48,18 +48,21 @@
     // copy public
     $w = date('w');
     $out = "~/.dump/pub{$w}.tar";
+    $usr = PG_USER;
     $src = FAST;
     Info('pg_dump');
-    exec("/usr/pgsql-9.6/bin/pg_dump -h $src -p 5432 -U gpsprivatagro -d postgres -F t -n public -f $out");
+    exec("/usr/pgsql-9.6/bin/pg_dump -h $src -p 5432 -U $usr -d postgres -F t -n public -f $out");
 
     $dst = ARCH;
     Info('pg_restore');
-    exec("/usr/pgsql-9.6/bin/pg_restore -h $dst -p 5432 -U gpsprivatagro -d postgres --clean -F t -n public $out");
+    exec("/usr/pgsql-9.6/bin/pg_restore -h $dst -p 5432 -U $usr -d postgres --clean -F t -n public $out");
 
     // Read devices
+    Info('read devices...');
     $devices = $PGF->prepare("SELECT _id FROM devices ORDER BY _id")
                     ->execute_all();
 
+    Info('proceed devices:');
     foreach($devices as $row) {
         $id = intval($row['_id']);
         echo PHP_EOL . "DEV $id ";
@@ -143,5 +146,5 @@
         }
         break;
     }
-
-    echo "\nFinish within " . (time() - $time) . " sec.\n";
+    echo "\n";
+    Info("Finish within " . (time() - $time) . " sec.");
