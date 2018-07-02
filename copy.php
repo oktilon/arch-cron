@@ -1,5 +1,6 @@
 <?php
     require_once dirname(__FILE__) . '/cron.php';
+    InfoPrefix(__FILE__);
 
     function verifyEventTable($dev_id) {
         global $PGA;
@@ -34,11 +35,12 @@
     $w = date('w');
     $out = "~/.dump/pub{$w}.tar";
     $src = FAST;
-    //exec("pg_dump -h $src -p 5432 -U gpsprivatagro -d postgres -F t -n public -f $out");
-    exec("/usr/pgsql-9.6/bin/pg_dump -h $src -p 5432 -U gpsprivatagro -F t -n public -f $out postgres");
+    Info('pg_dump');
+    exec("/usr/pgsql-9.6/bin/pg_dump -h $src -p 5432 -U gpsprivatagro -d postgres -F t -n public -f $out");
 
     $dst = ARCH;
-    exec("/usr/pgsql-9.6/bin/pg_restore -h $dst -p 5432 -U gpsprivatagro -d postgres -F t -n public $out");
+    Info('pg_restore');
+    exec("/usr/pgsql-9.6/bin/pg_restore -h $dst -p 5432 -U gpsprivatagro -d postgres --clean -F t -n public $out");
 
     die("Stop\n");
 
