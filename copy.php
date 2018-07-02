@@ -35,10 +35,10 @@
     $out = "~/.dump/pub{$w}.tar";
     $src = FAST;
     //exec("pg_dump -h $src -p 5432 -U gpsprivatagro -d postgres -F t -n public -f $out");
-    exec("pg_dump -h $src -p 5432 -U gpsprivatagro -F t -n public -f $out postgres");
+    exec("/usr/pgsql-9.6/bin/pg_dump -h $src -p 5432 -U gpsprivatagro -F t -n public -f $out postgres");
 
     $dst = ARCH;
-    exec("pg_restore -h $dst -p 5432 -U gpsprivatagro -d postgres -F t -n public $out");
+    exec("/usr/pgsql-9.6/bin/pg_restore -h $dst -p 5432 -U gpsprivatagro -d postgres -F t -n public $out");
 
     die("Stop\n");
 
