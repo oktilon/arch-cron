@@ -1,39 +1,27 @@
 <?php
     require_once dirname(__FILE__) . '/cron.php';
 
-    function insertEvents($id, $val, $lst) {
+    function verifyEventTable($dev_id) {
         global $PGA;
 
         $has = $PGA->prepare("SELECT COUNT(relname) FROM pg_catalog.pg_class
                                 WHERE relname = :i AND reltype > 0")
-                    ->bind('i', "events_{$id}")
+                    ->bind('i', "events_{$dev_id}")
+                    ->execute_scalar();
+        return $has > 0;
+    }
+
+    function verifyInputTable($inp) {
+        global $PGA;
+
+        $has = $PGA->prepare("SELECT COUNT(relname) FROM pg_catalog.pg_class
+                                WHERE relname = :i AND reltype > 0")
+                    ->bind('i', $inp)
                     ->execute_scalar();
         if(!$has) {
-            echo "NO EVENTS TABLE FOR $id";
+            echo "NO INPUTS TABLE $inp";
             return;
         }
-
-
-        $val = implode(',', $val);
-        $PGA->prepare("INSERT INTO device_data.events_{$id}
-                        (when1,
-                         device_id,
-                         time_stamp,
-                         priority,
-                         altitude,
-                         speed,
-                         nsat,
-                         angle,
-                         distance,
-                         coord,
-                         is_checked)
-                    VALUES $val");
-        foreach($lst as $ix => $bnd) {
-            foreach($bnd as $k => $v) {
-                $PGA->bind("$k{$ix}", $v);
-            }
-        }
-        return $PGA->execute();
     }
 
     $beg = new DateTime();
@@ -46,10 +34,11 @@
     $w = date('w');
     $out = "~/.dump/pub{$w}.tar";
     $src = FAST;
-    exec("pg_dump -h $src -p 5432 -d postgres -F t -n public -f $out");
+    //exec("pg_dump -h $src -p 5432 -U gpsprivatagro -d postgres -F t -n public -f $out");
+    exec("pg_dump -h $src -p 5432 -U gpsprivatagro -F t -n public -f $out postgres");
 
     $dst = ARCH;
-    exec("pg_restore -h $dst -p 5432 -d postgres -F t -n public $out");
+    exec("pg_restore -h $dst -p 5432 -U gpsprivatagro -d postgres -F t -n public $out");
 
     die("Stop\n");
 
@@ -59,6 +48,7 @@
 
     foreach($devices as $row) {
         $id = intval($row['_id']);
+        echo PHP_EOL . "DEV $id ";
 
         // calculations
         // 1 - runStop
@@ -68,35 +58,78 @@
             ->bind('e', $sEnd)
             ->execute();
 
-        // Copy events
-        $lst = [];
-        $val = [];
-        $events = $PGF->select("SELECT * FROM device_data.events_{$id}");
-        foreach ($events as $ix=>$ev) {
-            $lst[$ix] = [
-                "w" => $ev['when1'],
-                "t" => $ev['time_stamp'],
-                "o" => $ev['coord'],
-                "d" => intval($ev['device_id']),
-                "p" => intval($ev['priority']),
-                "a" => intval($ev['altitude']),
-                "s" => intval($ev['speed']),
-                "n" => intval($ev['nsat']),
-                "g" => intval($ev['angle']),
-                "i" => intval($ev['distance']),
-                "h" => intval($ev['is_checked']),
-            ];
-            $val[] = "(:w$ix, :d$ix, :t$ix, :p$ix, :a$ix, :s$ix, :n$ix, :g$ix, :i$ix, :o$ix, :h$ix)";
+        if(!verifyEventTable($id)) {
+            echo "No event table";
+            continue;
         }
 
-        $q = insertEvents($id, $val, $lst);
-
-
         // Inputs list
-        $inputs = $PGF->prepare("SELECT relname FROM pg_catalog.pg_class
+        $inputs = [];
+        $lst = $PGF->prepare("SELECT relname FROM pg_catalog.pg_class
                                 WHERE relname ~ :i AND reltype > 0")
                     ->bind('i', "inputs_{$id}_.*")
                     ->execute_all();
+        foreach($lst as $r) {
+            $inp = $r['relname'];
+            $inputs[] = $inp;
+            verifyInputTable($inp);
+        }
+
+        // Copy data
+        $events = $PGF->select("SELECT * FROM device_data.events_{$id}");
+        foreach ($events as $ev) {
+            $eold = intval($ev['_id']);
+            $q = $PGA->prepare("INSERT INTO device_data.events_{$id}
+                            (when1,
+                             device_id,
+                             time_stamp,
+                             priority,
+                             altitude,
+                             speed,
+                             nsat,
+                             angle,
+                             distance,
+                             coord,
+                             is_checked)
+                        VALUES (:w, :d, :t, :p, :a, :s, :n, :g, :i, :o, :h)
+                        RETURNING _id")
+                    ->bind('w', $ev['when1'])
+                    ->bind('t', $ev['time_stamp'])
+                    ->bind('o', $ev['coord'])
+                    ->bind('d', intval($ev['device_id']))
+                    ->bind('p', intval($ev['priority']))
+                    ->bind('a', intval($ev['altitude']))
+                    ->bind('s', intval($ev['speed']))
+                    ->bind('n', intval($ev['nsat']))
+                    ->bind('g', intval($ev['angle']))
+                    ->bind('i', intval($ev['distance']))
+                    ->bind('h', intval($ev['is_checked']))
+                    ->execute_scalar();
+            if($q) {
+                echo "+";
+                $eid = intval($q);
+                foreach ($inputs as $inp) {
+                    $i_fast = $PGF->prepare("SELECT * FROM device_data.{$inp} WHERE event_id = :i")
+                            ->bind('i', $eold)
+                            ->execute_row();
+                    $w = $PGA->prepare("INSERT INTO device_data.{$inp}
+                                        (event_id,
+                                         input_val,
+                                         input_type,
+                                         device_id)
+                                    VALUES
+                                    (:e, :v, :t, :d)")
+                            ->bind('e', $eid)
+                            ->bind('v', intval($i_fast['input_val']))
+                            ->bind('t', intval($i_fast['input_type']))
+                            ->bind('d', intval($i_fast['device_id']))
+                            ->execute();
+                    echo $w ? '.' : 'x';
+                }
+            } else {
+                echo "-";
+            }
+        }
     }
 
     echo "Found " . count($devices) . " devices.\n";
