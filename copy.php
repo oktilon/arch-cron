@@ -101,11 +101,12 @@
             // Copy data
             $events = $inf->readEvents();
             Info('readed events' . getTime());
+            $h = -1;
             foreach ($events as $ev) {
                 $eold = intval($ev['_id']);
                 $eid = $inf->insertEvent($ev);
                 if($eid) {
-                    echo ".";
+                    $h = $inf->h();
                     foreach ($inputs as $inp) {
                         $inf->copyInput($eold, $eid, $inp);
                     }
@@ -114,12 +115,12 @@
                 }
             }
             $inf->save();
+            echo PHP_EOL;
         } catch (Eception $ex) {
             $m = $ex->getMessage();
             Info("Exception : $m");
         }
-        Info(getTime());
-        break;
+        Info("FIN $id" . getTime());
     }
-    echo "\n";
+    echo PHP_EOL;
     Info("Finish within " . (time() - $time) . " sec.");

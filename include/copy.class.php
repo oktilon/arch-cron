@@ -80,6 +80,13 @@ class Copy {
     public function b() { return $this->sBeg; }
     public function e() { return $this->sEnd; }
 
+    public function h($h) {
+        // 2000-01-01 00:00:00
+        $n = substr($this->ev['when1'], 17, 2);
+        if($n != $h) echo "-$n";
+        return $n;
+    }
+
     public function verifyEventTable() {
         global $PGA;
 
