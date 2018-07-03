@@ -433,15 +433,15 @@ int main(int argc, char *argv[])
     //Подключаемся к базе данных
     for(i = 0; i < DB_USERS; i++)
     {
-        sprintf(buff, "GPSDAEMON%d", i+1);
+        sprintf(buff, "name-%d", i+1);
         syslog(LOG_INFO,buff);
         pqSql_u[i] = PQsetdbLogin(  "127.0.0.1",
                                     "5432",
                                     NULL,
                                     NULL,
-                                    "postgres",
+                                    "base",
                                     buff,
-                                    "NPkjadsNLKJboiBILSDFS"); // NPkjadsNLKJboiBILSDFS // rjGhRuE5LVHl1xLMSHdB
+                                    "password");
         if(PQstatus(pqSql_u[i]) == CONNECTION_BAD)
         {
             syslog(LOG_CRIT,"Failed to connect to DB");
