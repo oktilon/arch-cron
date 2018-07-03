@@ -4,12 +4,15 @@ class Copy {
     public $event_id = 0;
     public $dt       = null;
 
+    public $dtEnd = null;
+
     private $sBeg = '';
     private $sEnd = '';
     private $ev   = null;
 
     public static $error = '';
     public static $pidFile = '';
+    public static $max_time = 0;
 
     function  __construct($id) {
         global $PGA, $PGF;
@@ -38,12 +41,7 @@ class Copy {
             $this->dt       = new DateTime($dt);
         }
 
-        $beg = new DateTime($dt);
-        $end = new DateTime($dt);
-        $end->modify("+ 24 hours");
-
-        $this->sBeg = $beg->format('Y-m-d H:i:s');
-        $this->sEnd = $end->format('Y-m-d H:i:s');
+        $this->setTimeLimits($dt);
 
         $cnt = $PGF->prepare("SELECT COUNT(_id) FROM device_data.events_{$id}
                                 WHERE when1 > :b")
@@ -58,21 +56,33 @@ class Copy {
     public function valid() { return $this->dev_id > 0; }
 
     public function save() {
-        global $PGA;
+        global $PGA, $PGF;
 
         if($this->ev) {
             $this->event_id = intval($this->ev['_id']);
             $this->dt = new DateTime($this->ev['when1']);
         }
 
-        $q = $PGA->prepare("INSERT INTO log.copy (dev_id, event_id, dt)
-                            VALUES (:i, :e, :d)
+        $dt = $this->dt->format('Y-m-d H:i:s');
+
+        $t = $PGF->prepare("SELECT COUNT(_id)
+                            FROM device_data.events_{$this->dev_id}
+                            WHERE when1 > :d")
+                ->bind('d', $dt)
+                ->execute_scalar();
+        $tot = intval($t);
+
+        $q = $PGA->prepare("INSERT INTO log.copy (dev_id, event_id, dt, cnt_left, dt_upd)
+                            VALUES (:i, :e, :d, :c, NOW())
                             ON CONFLICT(dev_id) DO UPDATE SET
                                 event_id = :e,
-                                dt = :d")
+                                dt       = :d,
+                                cnt_left = :c,
+                                dt_upd   = NOW();")
                 ->bind('i', $this->dev_id)
                 ->bind('e', $this->event_id)
-                ->bind('d', $this->dt->format('Y-m-d H:i:s'))
+                ->bind('d', $dt)
+                ->bind('c', $tot)
                 ->execute();
         if(!$q) throw new Exception("save error {$PGA->error}");
         return true;
@@ -156,6 +166,42 @@ class Copy {
         return $ret;
     }
 
+    public static function getMaxTime() {
+        if(!self::$max_time) {
+            $dt = new DateTime();
+            $dt->setTime("00:00:00");
+            self::$max_time = intval($dt->format('U'));
+        }
+        return self::$max_time;
+    }
+
+    public function endOfTime() {
+        $t = intval($this->dtEnd->format('U'));
+        return $t > self::getMaxTime();
+    }
+
+    public function setTimeLimits($dt) {
+        $this->dtEnd = new DateTime($dt);
+        $this->dtEnd->modify("+ 24 hours");
+
+        $this->sBeg = $this->dt->format('Y-m-d H:i:s');
+        $this->sEnd = $this->dtEnd->format('Y-m-d H:i:s');
+    }
+
+    public function skipDay() {
+        $this->dt = $this->dtEnd;
+        $ev = [
+            '_id'   => 0,
+            'when1' => $this->sEnd
+        ];
+        $this->setTimeLimits($this->sEnd);
+
+        $this->ev = $ev;
+        $this->save();
+
+        return $this->readEvents();
+    }
+
     public function readEvents() {
         global $PGF;
 
@@ -169,6 +215,11 @@ class Copy {
         if($ret === FALSE) {
             throw new Exception("read events error {$PGF->error}");
         }
+
+        if(!$ret && !$this->endOfTime()) {
+            $ret = $this->skipDay();
+        }
+
         return $ret;
     }
 
@@ -227,8 +278,9 @@ class Copy {
         }
     }
 
-    public static function pidLock($lckFile = 'copy_fast.loc', $skip = 3600, $admin_tg = 0) {
-        if(!$lckFile) return true;
+    public static function pidLock($fName = 'copy_fast.loc', $skip = 3600, $admin_tg = 0) {
+        if(!$fName) return true;
+        $lckFile = PATH_CRON . DIRECTORY_SEPARATOR . $fName;
         if(file_exists($lckFile)) {
             $crt = filectime($lckFile);
             $fp = fopen($lckFile, 'r');

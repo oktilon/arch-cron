@@ -76,7 +76,7 @@
     Info('read devices...');
     $devices = $PGF->prepare("SELECT _id FROM devices ORDER BY _id")
                     ->execute_all();
-    Info('readed' . getTime());
+    Info('readed ' . (count($devices)) . ' dev. ' . getTime());
 
     Info('proceed devices:');
     foreach($devices as $row) {
@@ -93,17 +93,17 @@
 
             // calculations
             $inf->doCalculations();
-            Info('calculations' . getTime());
+            Info("DEV $id calculations" . getTime());
 
             $inf->verifyEventTable();
 
             // Inputs list
             $inputs = $inf->readInputs();
-            Info('inputs list' . getTime());
+            Info("DEV $id inputs list" . getTime());
 
             // Copy data
             $events = $inf->readEvents();
-            Info('readed events' . getTime());
+            Info("DEV $id readed events" . getTime());
             $h = -1;
             foreach ($events as $ev) {
                 $eold = intval($ev['_id']);
@@ -121,7 +121,7 @@
             echo PHP_EOL;
         } catch (Eception $ex) {
             $m = $ex->getMessage();
-            Info("Exception : $m");
+            Info("DEV $id Exception : $m");
         }
         Info("FIN $id" . getTime());
     }

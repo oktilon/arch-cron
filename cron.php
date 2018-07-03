@@ -41,5 +41,5 @@
 
     if($err) {
         Info(implode("\n", $err));
-        die();
+        if(!isset($ignore)) die();
     }

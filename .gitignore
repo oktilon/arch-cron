@@ -1,3 +1,6 @@
 
 \.phpintel/
 config.php
+**\.lck
+*\.lck
+*.lck
