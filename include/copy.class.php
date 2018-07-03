@@ -278,7 +278,7 @@ class Copy {
         }
     }
 
-    public static function pidLock($fName = 'copy_fast.loc', $skip = 3600, $admin_tg = 0) {
+    public static function pidLock($fName = 'copy_fast.lck', $skip = 3600, $admin_tg = 0) {
         if(!$fName) return true;
         $lckFile = PATH_CRON . DIRECTORY_SEPARATOR . $fName;
         if(file_exists($lckFile)) {

@@ -11,7 +11,7 @@
     $y  = "\033[1;33m"; // yellow
     $cy = "\033[1;36m"; // cyan
 
-    if(!Copy::pidLock('tst.loc')) die('lock' . PHP_EOL);
+    if(!Copy::pidLock('tst.lck')) die('lock' . PHP_EOL);
 
     for($i = 0; $i < 20; $i++) {
         echo "Sleep {$g}{$i}{$e}" . PHP_EOL;
