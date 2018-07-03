@@ -114,11 +114,9 @@
                 }
             }
             $inf->save();
-        } catch ($ex) {
-            $t = get_class($ex);
-            if($t) $t = 'Exception';
-            $m = method_exists($ex, 'getMessage') ? $ex->getMessage() : 'error';
-            Info("$t : $m");
+        } catch (Eception $ex) {
+            $m = $ex->getMessage();
+            Info("Exception : $m");
         }
         Info(getTime());
         break;
