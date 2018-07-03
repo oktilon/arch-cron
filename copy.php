@@ -53,6 +53,9 @@
         }
     }
 
+    if(!Copy::pidLock()) die();
+
+
     if(!$skip) {
         // copy public
         $w = date('w');
@@ -124,3 +127,5 @@
     }
     echo PHP_EOL;
     Info("Finish within " . (time() - $time) . " sec.");
+
+    Copy::pidUnLock();

@@ -9,6 +9,7 @@ class Copy {
     private $ev   = null;
 
     public static $error = '';
+    public static $pidFile = '';
 
     function  __construct($id) {
         global $PGA, $PGF;
@@ -224,5 +225,47 @@ class Copy {
                     ->execute();
             if(!$w) echo $PGA->error;
         }
+    }
+
+    public static function pidLock($lckFile = 'copy_fast.loc', $skip = 3600, $admin_tg = 0) {
+        if(!$lckFile) return true;
+        if(file_exists($lckFile)) {
+            $crt = filectime($lckFile);
+            $fp = fopen($lckFile, 'r');
+            if($fp) {
+                $pid = fgets($fp);
+                fclose($fp);
+            } else {
+                $pid = 0;
+            }
+            if($pid && file_exists("/proc/$pid")) {
+                $tm = time() - $crt;
+                $dt = date('Y-m-d H:i:s', $crt);
+                $msg = "Previous script ($pid) works since $dt ($tm sec.)";
+                // if($tm > $skip) {
+                //     $id = Telegram::sendMessage($admin_tg, "$lckFile ($pid) works $tm sec.");
+                //     $msg .= ", sms_id = $id";
+                // }
+                Info($msg);
+                return false;
+            }
+        }
+        $pid = getmypid();
+        $fp = fopen($lckFile, 'w');
+        if($fp) {
+            fwrite($fp, "$pid");
+            fclose($fp);
+            self::$pidFile = $lckFile;
+            return true;
+        }
+        $msg = "$lckFile ($pid) can't create lock";
+        // $id = Telegram::sendMessage($admin_tg, $msg);
+        // $msg .= ", sms_id = $id";
+        Info($msg);
+        return false;
+    }
+
+    public static function pidUnLock() {
+        if(self::$pidFile && file_exists(self::$pidFile)) unlink(self::$pidFile);
     }
 }
