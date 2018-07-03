@@ -2,148 +2,125 @@
     require_once dirname(__FILE__) . '/cron.php';
     InfoPrefix(__FILE__);
     $time = time();
+    $time_mark = $time;
 
-    function verifyEventTable($dev_id) {
-        global $PGA;
+    // colors
+    $e  = "\033[0m";
+    $g  = "\033[1;32m"; // green
+    $y  = "\033[1;33m"; // yellow
+    $cy = "\033[1;36m"; // cyan
 
-        $has = $PGA->prepare("SELECT COUNT(relname) FROM pg_catalog.pg_class
-                                WHERE relname = :i AND reltype > 0")
-                    ->bind('i', "events_{$dev_id}")
-                    ->execute_scalar();
-        if(!$has) {
-            $PGA->prepare("CREATE TABLE IF NOT EXISTS device_data.events_{$dev_id} ( CHECK (device_id = {$dev_id} ), PRIMARY KEY (_id),
-                    CONSTRAINT \"OUT_KEY_{$dev_id}\"
-                        FOREIGN KEY (device_id) REFERENCES devices (_id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE
-                    ) INHERITS (device_data.events);")->execute();
+    // ALTER SEQUENCE "EVENTS__ID_seq" RESTART WITH 1;
+    // ALTER SEQUENCE "INPUTS_INPUT_ID_seq" RESTART WITH 1;
 
-            $PGA->prepare("GRANT SELECT ON TABLE device_data.events_{$dev_id} TO userviewer;'")->execute();
-            $PGA->prepare("CREATE INDEX \"EVENTS__ID_idx_{$dev_id}\" ON device_data.events_{$dev_id} USING btree (_id );")->execute();
-            $PGA->prepare("CREATE INDEX \"EVENTS__device_id_idx_{$dev_id}\" ON device_data.events_{$dev_id} USING btree (device_id );")->execute();
-            $PGA->prepare("CREATE INDEX \"EVENTS__device_id_when1_idx_{$dev_id}\" ON device_data.events_{$dev_id} USING btree (device_id , when1 );")->execute();
-            $PGA->prepare("CREATE INDEX \"EVENTS_time_stamp_idx_{$dev_id}\" ON device_data.events_{$dev_id} USING btree (time_stamp );")->execute();
-            $PGA->prepare("CREATE INDEX \"EVENTS_when1_idx_{$dev_id}\" ON device_data.events_{$dev_id} USING btree (when1 );")->execute();
-            $PGA->prepare("GRANT SELECT ON TABLE device_data.events_{$dev_id} TO userviewer;'")->execute();
+    function getTime() {
+        global $time_mark, $cy, $e;
+        $t = time();
+        $r = $t - $time_mark;
+        $time_mark = $t;
+        return " {$cy}{$r}{$e} sec.";
+    }
+
+    $me  = $argv ? array_shift($argv) : __FILE__;
+
+    $skip = false;
+    $dev  = 0;
+
+
+    while($argv) {
+        $opt = array_shift($argv);
+        switch($opt) {
+            case '-s':
+            case 'skip':
+            case '--skip':
+                $skip = true;
+                break;
+
+            case '-d':
+            case '--device':
+                $dev = $argv ? intval(array_shift($argv)) : 0;
+                break;
+
+            case '':
+                break;
+
+            default:
+                echo "Usage {$g}$me{$e} [{$y}-s{$e}]\n" .
+                     "  where : {$y}-s{$e}, {$y}--skip{$e}, {$y}skip{$e} - skip pg_dump/pg_restore public\n" .
+                     "          {$y}-h{$e}, {$y}--help{$e}, {$y}help{$e} - show this help\n";
+                die();
+                break;
         }
     }
 
-    function verifyInputTable($inp) {
-        global $PGA;
+    if(!$skip) {
+        // copy public
+        $w = date('w');
+        $out = "~/.dump/pub{$w}.tar";
+        $usr = PG_USER;
+        $src = FAST;
+        Info('pg_dump ...');
+        exec("/usr/pgsql-9.6/bin/pg_dump -h $src -p 5432 -U $usr -d postgres -F t -n public -f $out");
+        Info('pg_dumped' . getTime());
 
-        $has = $PGA->prepare("SELECT COUNT(relname) FROM pg_catalog.pg_class
-                                WHERE relname = :i AND reltype > 0")
-                    ->bind('i', $inp)
-                    ->execute_scalar();
-        if(!$has) {
-            echo "NO INPUTS TABLE $inp";
-            return;
-        }
+        $dst = ARCH;
+        Info('pg_restore ...');
+        exec("/usr/pgsql-9.6/bin/pg_restore -h $dst -p 5432 -U $usr -d postgres --clean -F t -n public $out");
+        Info('pg_restored' . getTime());
     }
-
-    $beg = new DateTime();
-    $beg->modify("-1 DAY");
-
-    $sBeg = $beg->formaT('Y-m-d') . " 00:00:00";
-    $sEnd = $beg->formaT('Y-m-d') . " 23:59:59";
-
-    // copy public
-    $w = date('w');
-    $out = "~/.dump/pub{$w}.tar";
-    $usr = PG_USER;
-    $src = FAST;
-    Info('pg_dump');
-    exec("/usr/pgsql-9.6/bin/pg_dump -h $src -p 5432 -U $usr -d postgres -F t -n public -f $out");
-
-    $dst = ARCH;
-    Info('pg_restore');
-    exec("/usr/pgsql-9.6/bin/pg_restore -h $dst -p 5432 -U $usr -d postgres --clean -F t -n public $out");
 
     // Read devices
     Info('read devices...');
     $devices = $PGF->prepare("SELECT _id FROM devices ORDER BY _id")
                     ->execute_all();
+    Info('readed' . getTime());
 
     Info('proceed devices:');
     foreach($devices as $row) {
-        $id = intval($row['_id']);
-        echo PHP_EOL . "DEV $id ";
+        try {
+            $id = intval($row['_id']);
+            $inf = new Copy($id);
 
-        // calculations
-        // 1 - runStop
-        $PGF->prepare("SELECT * FROM calcRunStop(:i, :b, :e)")
-            ->bind('i', $id)
-            ->bind('b', $sBeg)
-            ->bind('e', $sEnd)
-            ->execute();
+            echo PHP_EOL . "DEV $id ";
 
-        verifyEventTable($id);
-
-        // Inputs list
-        $inputs = [];
-        $lst = $PGF->prepare("SELECT relname FROM pg_catalog.pg_class
-                                WHERE relname ~ :i AND reltype > 0")
-                    ->bind('i', "inputs_{$id}_.*")
-                    ->execute_all();
-        foreach($lst as $r) {
-            $inp = $r['relname'];
-            $inputs[] = $inp;
-            verifyInputTable($inp);
-        }
-
-        // Copy data
-        $events = $PGF->select("SELECT * FROM device_data.events_{$id}");
-        foreach ($events as $ev) {
-            $eold = intval($ev['_id']);
-            $q = $PGA->prepare("INSERT INTO device_data.events_{$id}
-                            (when1,
-                             device_id,
-                             time_stamp,
-                             priority,
-                             altitude,
-                             speed,
-                             nsat,
-                             angle,
-                             distance,
-                             coord,
-                             is_checked)
-                        VALUES (:w, :d, :t, :p, :a, :s, :n, :g, :i, :o, :h)
-                        RETURNING _id")
-                    ->bind('w', $ev['when1'])
-                    ->bind('t', $ev['time_stamp'])
-                    ->bind('o', $ev['coord'])
-                    ->bind('d', intval($ev['device_id']))
-                    ->bind('p', intval($ev['priority']))
-                    ->bind('a', intval($ev['altitude']))
-                    ->bind('s', intval($ev['speed']))
-                    ->bind('n', intval($ev['nsat']))
-                    ->bind('g', intval($ev['angle']))
-                    ->bind('i', intval($ev['distance']))
-                    ->bind('h', intval($ev['is_checked']))
-                    ->execute_scalar();
-            if($q) {
-                echo "+";
-                $eid = intval($q);
-                foreach ($inputs as $inp) {
-                    $i_fast = $PGF->prepare("SELECT * FROM device_data.{$inp} WHERE event_id = :i")
-                            ->bind('i', $eold)
-                            ->execute_row();
-                    $w = $PGA->prepare("INSERT INTO device_data.{$inp}
-                                        (event_id,
-                                         input_val,
-                                         input_type,
-                                         device_id)
-                                    VALUES
-                                    (:e, :v, :t, :d)")
-                            ->bind('e', $eid)
-                            ->bind('v', intval($i_fast['input_val']))
-                            ->bind('t', intval($i_fast['input_type']))
-                            ->bind('d', intval($i_fast['device_id']))
-                            ->execute();
-                    echo $w ? '.' : 'x';
-                }
-            } else {
-                echo "-";
+            if(!$inf->valid()) {
+                Info(Copy::$error);
+                continue;
             }
+
+            // calculations
+            $inf->doCalculations();
+            Info('calculations' . getTime());
+
+            $inf->verifyEventTable();
+
+            // Inputs list
+            $inputs = $inf->readInputs();
+            Info('inputs list' . getTime());
+
+            // Copy data
+            $events = $inf->readEvents();
+            Info('readed events' . getTime());
+            foreach ($events as $ev) {
+                $eold = intval($ev['_id']);
+                $eid = $inf->insertEvent($ev);
+                if($eid) {
+                    echo ".";
+                    foreach ($inputs as $inp) {
+                        $inf->copyInput($eold, $eid, $inp);
+                    }
+                } else {
+                    echo "0";
+                }
+            }
+            $inf->save();
+        } catch ($ex) {
+            $t = get_class($ex);
+            if($t) $t = 'Exception';
+            $m = method_exists($ex, 'getMessage') ? $ex->getMessage() : 'error';
+            Info("$t : $m");
         }
+        Info(getTime());
         break;
     }
     echo "\n";

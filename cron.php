@@ -17,8 +17,12 @@
     function Info($txt) {
         global $infoPrefix;
         $out = $infoPrefix . $txt;
-        syslog(LOG_WARNING, $out);
         echo $out . PHP_EOL;
+        // purge colors
+        while(preg_match("/(\033\[([\d\;]+m))/", $out, $m)) {
+            $out = str_replace($m[1], '', $out);
+        }
+        syslog(LOG_WARNING, $out);
     }
 
     //require_once PATH_BASE . $ds . 'error_handler.php';
