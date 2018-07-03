@@ -5,3 +5,5 @@ config.php
 *\.lck
 *.lck
 *.loc
+
+copy_fast

@@ -41,6 +41,6 @@ int main(int argc, char *argv[])
     }
     pga->free();
 
-    printf("Found %d rows\n", cnt);
+    printf("Found %d rows in log.copy\n", cnt);
     return 0;
 }
