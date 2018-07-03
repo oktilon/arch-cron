@@ -33,11 +33,7 @@ int main(int argc, char *argv[])
         return 0;
     }
 
-    sprintf(
-        buff,
-        "SELECT COUNT(dev_id) FROM log.copy"
-    );
-
+    sprintf(buff, "SELECT COUNT(dev_id) FROM log.copy");
     pga->exec(buff);
 
     if(pga->rows() != 0) {
@@ -45,7 +41,7 @@ int main(int argc, char *argv[])
     }
     pga->free();
 
-    printf("Found %d rows in log.copy table\n", cnt);
+    printf("Found %d rows in log.copy\n", cnt);
 
     for(int i = 0; i < 20; i++) {
         printf("sleep %s%d%s\n", Copy::col_y, i, Copy::col_e);
