@@ -82,7 +82,7 @@ class Copy {
 
     public function h($h) {
         // 2000-01-01 00:00:00
-        $n = substr($this->ev['when1'], 17, 2);
+        $n = substr($this->ev['when1'], 11, 2);
         if($n != $h) echo "-$n";
         return $n;
     }
