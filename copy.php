@@ -106,7 +106,7 @@
                 $eold = intval($ev['_id']);
                 $eid = $inf->insertEvent($ev);
                 if($eid) {
-                    $h = $inf->h();
+                    $h = $inf->h($h);
                     foreach ($inputs as $inp) {
                         $inf->copyInput($eold, $eid, $inp);
                     }
