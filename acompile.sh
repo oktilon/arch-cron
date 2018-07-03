@@ -1,1 +1,2 @@
-gcc -I `pg_config --includedir` -L `pg_config --libdir` $1 -lpq -lm -pthread -o copy_fast
+#gcc -I `pg_config --includedir` -L `pg_config --libdir` $1 copy.cpp db.cpp -lpq -lm -pthread -o copy_fast
+g++ -I`pg_config --includedir` -L`pg_config --libdir` $1 copy.cpp db.cpp -lpq `pg_config --cppflags` -o copy_fast
