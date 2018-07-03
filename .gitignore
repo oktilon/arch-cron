@@ -7,3 +7,4 @@ config.php
 *.loc
 
 copy_fast
+config.h

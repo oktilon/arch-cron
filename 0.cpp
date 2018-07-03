@@ -11,7 +11,6 @@
 
 int main(int argc, char *argv[])
 {
-
     char buff[4096];
     int cnt = -1;
     pid_t pid = getpid();
@@ -23,9 +22,14 @@ int main(int argc, char *argv[])
 
     Db::init();
     Db* pga = Db::arch();
+    Db* pgf = Db::fast();
 
     if(!pga->valid()) {
         printf("Failed to connect to Arch DB\n");
+        return 0;
+    }
+    if(!pgf->valid()) {
+        printf("Failed to connect to Fast DB\n");
         return 0;
     }
 
@@ -41,6 +45,12 @@ int main(int argc, char *argv[])
     }
     pga->free();
 
-    printf("Found %d rows in log.copy\n", cnt);
+    printf("Found %d rows in log.copy table\n", cnt);
+
+    for(int i = 0; i < 20; i++) {
+        printf("sleep %s%d%s\n", Copy::col_y, i, Copy::col_e);
+        sleep(1);
+    }
+
     return 0;
 }
