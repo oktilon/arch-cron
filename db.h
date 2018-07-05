@@ -7,7 +7,7 @@ class Db {
 
         Db(const char* srv);
         bool valid();
-        PGresult *exec(char* sql);
+        ExecStatusType exec(const char* sql);
         PGresult *prepare(const char *stmtName, const char *query, int nParams, const Oid *paramTypes);
         PGresult *execPrepared(char *stmtName,
                                     int nParams,

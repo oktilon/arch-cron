@@ -27,9 +27,18 @@ bool Db::valid() {
     return PQstatus(pq) != CONNECTION_BAD;
 };
 
-PGresult *Db::exec(char* sql) {
+
+// ExecStatusType::PGRES_COMMAND_OK
+// ExecStatusType::PGRES_TUPLES_OK
+// ExecStatusType::PGRES_SINGLE_TUPLE
+// ExecStatusType::PGRES_EMPTY_QUERY
+// ExecStatusType::PGRES_BAD_RESPONSE
+// ExecStatusType::PGRES_NONFATAL_ERROR
+// ExecStatusType::PGRES_FATAL_ERROR
+
+ExecStatusType Db::exec(const char* sql) {
     result = PQexec(pq, sql);
-    return result;
+    return resultStatus();
 }
 
 PGresult *Db::prepare(const char *stmtName, const char *query, int nParams, const Oid *paramTypes) {
