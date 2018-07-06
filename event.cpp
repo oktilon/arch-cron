@@ -55,7 +55,7 @@ int Event::h(int h) {
 
 int Event::save(char *buff) {
     Db* pga = Db::arch();
-    sprintf(buff, "EXPLAIN INSERT INTO device_data.events_%d ("
+    sprintf(buff, "INSERT INTO device_data.events_%d ("
                 "when1,"
                 "device_id,"
                 "time_stamp,"
@@ -72,8 +72,8 @@ int Event::save(char *buff) {
                 w, d, t, p, alt, s, n, ang, dst, x, y);
     pga->exec(buff);
     int c = pga->count();
-    //if(c > 0) iNew = pga->intval(0, 0);
+    if(c > 0) iNew = pga->intval(0, 0);
     pga->free();
-    iNew = 1;
+    //iNew = 1;
     return iNew;
 }

@@ -278,8 +278,9 @@ void Copy::save(Event *last) {
                 "WHERE when1 > '%s'", dev_id, tm);
     pgf->exec(buff);
     int t = pgf->count() > 0 ? pgf->intval(0, 0) : 0;
+    pgf->free();
 
-    sprintf(buff, "EXPLAIN INSERT INTO log.copy (dev_id, event_id, dt, cnt_left, dt_upd) "
+    sprintf(buff, "INSERT INTO log.copy (dev_id, event_id, dt, cnt_left, dt_upd) "
                 "VALUES (%d, %d, '%s', %d, NOW()) "
                 "ON CONFLICT(dev_id) DO UPDATE SET "
                     "event_id = %d, "
@@ -292,6 +293,7 @@ void Copy::save(Event *last) {
         sprintf(buff, "save error %s", pga->error());
         throw std::runtime_error(buff);
     }
+    pga->free();
 }
 
 bool Copy::pidLock(const char *fName) {

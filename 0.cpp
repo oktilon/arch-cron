@@ -186,12 +186,16 @@ int main(int argc, char *argv[])
             }
             Event *last = e > 1 ? events[--e] : NULL;
             inf.save(last);
-            printf("%s\n", getTime(&tm_mark, bufTm));
+            sprintf(buff, "DEV %s%d%s [%s]%s",
+                Copy::col_y, id, Copy::col_e, inf.sBeg,
+                getTime(&tm_mark, bufTm));
+            Info(buff);
         }
         catch(std::exception& e) {
-            printf("\nException for %s%d%s (%s) : %s\n",
+            sprintf(buff, "Exception for %s%d%s (%s) : %s",
                 Copy::col_b, id, Copy::col_e,
                 getTime(&tm_mark, bufTm), e.what());
+            Info(buff);
         }
     }
 

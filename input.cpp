@@ -128,7 +128,7 @@ void Input::copyInput(Event *e, char *buff) {
     int c = pgf->count();
 
     if(c > 0) {
-        sprintf(buff, "EXPLAIN INSERT INTO device_data.%s ("
+        sprintf(buff, "INSERT INTO device_data.%s ("
                             "event_id,"
                             "input_val,"
                             "input_type,"
