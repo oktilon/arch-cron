@@ -1,4 +1,5 @@
 #include "db.h"
+#include "input.h"
 
 class Copy {
     public:
@@ -18,6 +19,9 @@ class Copy {
         Db *pga;
         Db *pgf;
 
+        Input** m_inputs;
+        Event** m_events;
+
         static const char* col_e;
         static const char* col_gr;
         static const char* col_r;
@@ -34,11 +38,19 @@ class Copy {
         static const char* col_dm;
         static const char* col_dc;
         static const char* col_dw;
+        static time_t tm_max;
 
         Copy(int id, char* b);
         ~Copy();
         bool valid();
         void setTimeLimits();
+        void doCalculations();
+        void verifyEventTable();
+        Input **readInputs(int *cnt);
+        Event **readEvents(int *cnt);
+        Event **skipDay(int *cnt);
+        bool endOfTime();
+        void save(Event *last);
 
         static int *readDevices(Db *pgf, int *cnt);
         static char *pLockFile;
@@ -46,4 +58,5 @@ class Copy {
         static void pidUnLock();
         static char *getTime(time_t t, char *buf);
         static time_t strtotime(const char *s);
+        static time_t getMaxTime();
 };

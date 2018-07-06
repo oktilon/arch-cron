@@ -1,3 +1,5 @@
+#include <exception>
+#include <stdexcept>
 #include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -12,6 +14,8 @@
 #include <libpq-fe.h>
 
 #include "copy.h"
+#include "event.h"
+#include "input.h"
 
 const char* Copy::col_e  = "\033[0m";
 const char* Copy::col_gr = "\033[1;30m";
@@ -31,6 +35,7 @@ const char* Copy::col_dc = "\033[0;36m";
 const char* Copy::col_dw = "\033[0;37m";
 
 char *Copy::pLockFile = NULL;
+time_t Copy::tm_max = 0;
 
 Copy::Copy(int id, char* buf) {
     buff = buf;
@@ -40,6 +45,8 @@ Copy::Copy(int id, char* buf) {
     sBeg = (char*)malloc(20);
     sEnd = (char*)malloc(20);
     dev_id = 0;
+    m_inputs = NULL;
+    m_events = NULL;
 
     bool bNew = false;
 
@@ -106,6 +113,8 @@ Copy::~Copy() {
     free(sBeg);
     free(sEnd);
     free(error);
+    if(m_inputs) free(m_inputs);
+    if(m_events) free(m_events);
 }
 
 void Copy::setTimeLimits() {
@@ -119,8 +128,9 @@ bool Copy::valid() { return dev_id > 0; }
 int *Copy::readDevices(Db *pgf, int *cnt) {
     int *ret;
     pgf->exec("SELECT _id FROM devices ORDER BY _id");
+    //pgf->exec("SELECT _id FROM devices WHERE _id > 3000 ORDER BY _id");
     if(pgf->resultStatus() == ExecStatusType::PGRES_TUPLES_OK) {
-        *cnt = pgf->rows();
+        *cnt = pgf->count();
         ret = (int*)malloc(sizeof(int) * (*cnt));
         for(int i = 0; i < *cnt; i++) {
             ret[i] = pgf->intval(i, 0);
@@ -129,7 +139,159 @@ int *Copy::readDevices(Db *pgf, int *cnt) {
         ret = (int*)malloc(sizeof(int));
         ret[0] = 0;
     }
+    pgf->free();
     return ret;
+}
+
+void Copy::doCalculations() {
+    // 1 - calcRunStop
+    sprintf(buff, "SELECT * FROM calcRunStop(%d, '%s', '%s')", dev_id, sBeg, sEnd);
+    pgf->exec(buff);
+    pgf->free();
+}
+
+void Copy::verifyEventTable() {
+    sprintf(buff, "SELECT COUNT(relname) FROM pg_catalog.pg_class "
+                    "WHERE relname = 'events_%d' AND reltype > 0", dev_id);
+    pga->exec(buff);
+    int i = pga->count();
+    int has = i > 0 ? pga->intval(0, 0) : 0;
+    pga->free();
+    if(has == 0) {
+        sprintf(buff, "CREATE TABLE IF NOT EXISTS device_data.events_%d ( CHECK (device_id = %d ), PRIMARY KEY (_id), "
+                "CONSTRAINT \"OUT_KEY_%d\" "
+                "    FOREIGN KEY (device_id) REFERENCES devices (_id) MATCH SIMPLE ON UPDATE NO ACTION ON DELETE CASCADE DEFERRABLE INITIALLY IMMEDIATE "
+                ") INHERITS (device_data.events);", dev_id, dev_id, dev_id);
+        pga->exec(buff);
+        pga->free();
+
+        sprintf(buff, "GRANT SELECT ON TABLE device_data.events_%d TO userviewer;'", dev_id);
+        pga->exec(buff);
+        pga->free();
+        sprintf(buff, "CREATE INDEX \"EVENTS__ID_idx_%d\" ON device_data.events_%d USING btree (_id );", dev_id, dev_id);
+        pga->exec(buff);
+        pga->free();
+        sprintf(buff, "CREATE INDEX \"EVENTS__device_id_idx_%d\" ON device_data.events_%d USING btree (device_id );", dev_id, dev_id);
+        pga->exec(buff);
+        pga->free();
+        sprintf(buff, "CREATE INDEX \"EVENTS__device_id_when1_idx_%d\" ON device_data.events_%d USING btree (device_id , when1 );", dev_id, dev_id);
+        pga->exec(buff);
+        pga->free();
+        sprintf(buff, "CREATE INDEX \"EVENTS_time_stamp_idx_%d\" ON device_data.events_%d USING btree (time_stamp );", dev_id, dev_id);
+        pga->exec(buff);
+        pga->free();
+        sprintf(buff, "CREATE INDEX \"EVENTS_when1_idx_%d\" ON device_data.events_%d USING btree (when1 );", dev_id, dev_id);
+        pga->exec(buff);
+        pga->free();
+        sprintf(buff, "GRANT SELECT ON TABLE device_data.events_%d TO userviewer;'", dev_id);
+        pga->exec(buff);
+        pga->free();
+    }
+}
+
+time_t Copy::getMaxTime() {
+    if(tm_max == 0) {
+        time_t now = time(NULL);
+        struct tm *ts;
+        ts = localtime(&now);
+
+        ts->tm_sec  = 0;
+        ts->tm_min  = 0;
+        ts->tm_hour = 0;
+        tm_max = mktime(ts);
+    }
+    return tm_max;
+}
+
+bool Copy::endOfTime() {
+    return dtEnd > getMaxTime();
+}
+
+Event **Copy::skipDay(int *cnt) {
+    dt = dtEnd;
+    setTimeLimits();
+    save(NULL);
+    return readEvents(cnt);
+}
+
+Event **Copy::readEvents(int *cnt) {
+    sprintf(buff, "SELECT * FROM device_data.events_%d "
+                    "WHERE when1 > '%s' AND when1 <= '%s' "
+                    "ORDER BY when1 ASC", dev_id, sBeg, sEnd);
+    ExecStatusType r = pgf->exec(buff);
+    if(r != ExecStatusType::PGRES_TUPLES_OK) {
+        sprintf(buff, "%s : %s", "read events error", pgf->error());
+        pgf->free();
+        throw std::runtime_error(buff);
+    }
+
+    *cnt = pgf->count();
+    if(*cnt == 0 && !endOfTime()) {
+        pgf->free();
+        return skipDay(cnt);
+    }
+
+    if(*cnt == 0) return m_events;
+
+    m_events = (Event**)malloc(sizeof(Event*)*(*cnt));
+    for(int r = 0; r < *cnt; r++) {
+        m_events[r] = new Event(r);
+    }
+    pgf->free();
+    return m_events;
+}
+
+Input **Copy::readInputs(int *cnt) {
+    sprintf(buff, "SELECT relname FROM pg_catalog.pg_class "
+                    "WHERE relname ~ 'inputs_%d_.*' AND reltype > 0 "
+                    "ORDER BY relname", dev_id);
+    ExecStatusType r = pgf->exec(buff);
+    if(r != ExecStatusType::PGRES_TUPLES_OK) {
+        sprintf(buff, "%s : %s", "read inputs error", pgf->error());
+        throw std::runtime_error(buff);
+    }
+
+    *cnt = pgf->count();
+
+    m_inputs = (Input**)malloc(sizeof(Input*)*(*cnt));
+    for(int r = 0; r < *cnt; r++) {
+        char *inp = pgf->value(r, 0);
+        Input *pinp = new Input(inp);
+        pinp->validate(buff);
+        m_inputs[r] = pinp;
+    }
+    pgf->free();
+    return m_inputs;
+}
+
+void Copy::save(Event *last) {
+    char tm[20];
+    if(last) {
+        event_id = last->i;
+        dt       = strtotime(last->w);
+    }
+
+    getTime(dt, tm);
+
+    sprintf(buff, "SELECT COUNT(_id) "
+                "FROM device_data.events_%d "
+                "WHERE when1 > '%s'", dev_id, tm);
+    pgf->exec(buff);
+    int t = pgf->count() > 0 ? pgf->intval(0, 0) : 0;
+
+    sprintf(buff, "EXPLAIN INSERT INTO log.copy (dev_id, event_id, dt, cnt_left, dt_upd) "
+                "VALUES (%d, %d, '%s', %d, NOW()) "
+                "ON CONFLICT(dev_id) DO UPDATE SET "
+                    "event_id = %d, "
+                    "dt       = '%s', "
+                    "cnt_left = %d, "
+                    "dt_upd   = NOW();", dev_id, event_id, tm, t,
+                    event_id, tm, t);
+    ExecStatusType r = pga->exec(buff);
+    if(r != ExecStatusType::PGRES_COMMAND_OK && r != ExecStatusType::PGRES_TUPLES_OK) {
+        sprintf(buff, "save error %s", pga->error());
+        throw std::runtime_error(buff);
+    }
 }
 
 bool Copy::pidLock(const char *fName) {
@@ -192,7 +354,7 @@ void Copy::pidUnLock() {
 char *Copy::getTime(time_t t, char *buf) {
     struct tm *ts;
     ts = localtime(&t);
-    strftime(buf, sizeof(buf), "%Y-%m-%d %X", ts);
+    strftime(buf, 20, "%F %X", ts);
     return buf;
 }
 

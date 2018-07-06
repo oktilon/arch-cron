@@ -42,9 +42,14 @@ int main(int argc, char *argv[])
     int *devices;
     int devices_count = 0;
 
-    char ttt[] = "2018-07-05 09:00:00";
-    time_t tti = Copy::strtotime(ttt);
-    printf("%s = %ld\n\n", ttt, tti);
+    /*
+        char ttt[] = "2018-07-05 09:00:00";
+        time_t tti = Copy::strtotime(ttt);
+        printf("%s = %ld\n\n", ttt, tti);
+
+        tti = Copy::getMaxTime();
+        printf("MaxTime=%ld [%s]\n\n", tti, Copy::getTime(tti, bufTm));
+    */
 
     for(int i = 0; i < argc; i++) {
         char *pa = argv[i];
@@ -141,80 +146,56 @@ int main(int argc, char *argv[])
     sprintf(buff, "readed %d dev.%s", devices_count, getTime(&tm_mark, bufTm));
     Info(buff);
 
-    Info("proceed devices:");
     for(int ix=0; ix < devices_count; ix++) {
         int id = devices[ix];
-        Copy inf = Copy(id, buff);
-        if(!inf.valid()) continue;
-        printf("Copy DEV=%s%d%s\n", Copy::col_y, id, Copy::col_e);
+        try {
+            // init
+            Copy inf = Copy(id, buff);
+            if(!inf.valid()) continue;
+            printf("Copy DEV=%s%d%s [%s]", Copy::col_y, id, Copy::col_e, inf.sBeg);
+
+            // calculations
+            inf.doCalculations();
+            //Info("DEV $id calculations" . getTime());
+
+            inf.verifyEventTable();
+
+            // Inputs list
+            int inp_cnt = 0;
+            Input **inputs = inf.readInputs(&inp_cnt);
+            printf(", inps=%d", inp_cnt);
+
+            // Read events
+            int ev_cnt = 0;
+            Event **events = inf.readEvents(&ev_cnt);
+            printf(", evs=%d\n", ev_cnt);
+
+            // Copy data
+            int h = -1;
+            int e = 0;
+            for(e = 0; e < ev_cnt; e++) {
+                int n = events[e]->save(buff);
+                h = events[e]->h(h);
+                if(n > 0) {
+                    for(int k = 0; k < inp_cnt; k++) {
+                        inputs[k]->copyInput(events[e], buff);
+                    }
+                } else {
+                    printf("x");
+                }
+            }
+            Event *last = e > 1 ? events[--e] : NULL;
+            inf.save(last);
+            printf("%s\n", getTime(&tm_mark, bufTm));
+        }
+        catch(std::exception& e) {
+            printf("\nException for %s%d%s (%s) : %s\n",
+                Copy::col_b, id, Copy::col_e,
+                getTime(&tm_mark, bufTm), e.what());
+        }
     }
 
     sprintf(buff, "Finish%s", getTime(&tm_start, bufTm));
     Info(buff);
     return 0;
 }
-
-
-/*
-
-
-
-
-    // Read devices
-    Info('read devices...');
-    $devices = $PGF->prepare("SELECT _id FROM devices ORDER BY _id")
-                    ->execute_all();
-    Info('readed ' . (count($devices)) . ' dev. ' . getTime());
-
-    Info('proceed devices:');
-    foreach($devices as $row) {
-        try {
-            $id = intval($row['_id']);
-            $inf = new Copy($id);
-
-            echo PHP_EOL . "DEV $id ";
-
-            if(!$inf->valid()) {
-                Info(Copy::$error);
-                continue;
-            }
-
-            // calculations
-            $inf->doCalculations();
-            Info("DEV $id calculations" . getTime());
-
-            $inf->verifyEventTable();
-
-            // Inputs list
-            $inputs = $inf->readInputs();
-            Info("DEV $id inputs list" . getTime());
-
-            // Copy data
-            $events = $inf->readEvents();
-            Info("DEV $id readed events" . getTime());
-            $h = -1;
-            foreach ($events as $ev) {
-                $eold = intval($ev['_id']);
-                $eid = $inf->insertEvent($ev);
-                if($eid) {
-                    $h = $inf->h($h);
-                    foreach ($inputs as $inp) {
-                        $inf->copyInput($eold, $eid, $inp);
-                    }
-                } else {
-                    echo "0";
-                }
-            }
-            $inf->save();
-            echo PHP_EOL;
-        } catch (Eception $ex) {
-            $m = $ex->getMessage();
-            Info("DEV $id Exception : $m");
-        }
-        Info("FIN $id" . getTime());
-    }
-    echo PHP_EOL;
-    Info("Finish within " . (time() - $time) . " sec.");
-
-    Copy::pidUnLock();
-    */

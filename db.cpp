@@ -73,8 +73,6 @@ ExecStatusType Db::resultStatus() { return PQresultStatus(result); }
 
 char *Db::resultStatusText() { return PQresStatus(resultStatus()); }
 
-int Db::rows() { return PQntuples(result); }
-
 char* Db::value(int row, int field) { return PQgetvalue(result, row, field); }
 int Db::intval(int row, int field) { return atoi(PQgetvalue(result, row, field)); }
 
