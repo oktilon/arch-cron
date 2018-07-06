@@ -41,6 +41,7 @@ ExecStatusType Db::exec(const char* sql) {
 
 char *Db::error() { return PQerrorMessage(pq); }
 char *Db::res_error() { return PQresultErrorMessage(result); }
+int Db::count() { return PQntuples(result); }
 
 PGresult *Db::prepare(const char *stmtName, const char *query, int nParams, const Oid *paramTypes) {
     result = PQprepare(pq,

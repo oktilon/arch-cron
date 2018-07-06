@@ -39,6 +39,7 @@ Copy::Copy(int id, char* buf) {
     error = (char*)malloc(50);
     sBeg = (char*)malloc(20);
     sEnd = (char*)malloc(20);
+    dev_id = 0;
 
     bool bNew = false;
 
@@ -46,28 +47,34 @@ Copy::Copy(int id, char* buf) {
     sprintf(buff, "SELECT COUNT(dev_id) FROM log.copy WHERE dev_id = %d", id);
     pga->exec(buff);
     if(pga->intval(0, 0) == 0) {
-        printf("%sNew copy%s\n", Copy::col_y, Copy::col_e);
-
         sprintf(buff, "SELECT _id, extract(epoch from when1 at time zone 'Europe/Kiev') AS dt "
                       "FROM device_data.events_%d "
                       "ORDER BY when1 ASC LIMIT 1", id);
         if(pgf->exec(buff) != ExecStatusType::PGRES_TUPLES_OK) {
-            sprintf(error, "init error");
-            printf("%scan't read%s events for %s%d%s\n", Copy::col_r, Copy::col_e,
-                    Copy::col_cy, id, Copy::col_e);
+            char *e = pgf->error();
+            error = (char*)realloc(error, 10+strlen(e));
+            strcpy(error, e);
+            printf("Error read %s%d%s events: %s%s%s", col_cy, id, col_e,
+                 col_r, error, col_e);
             return;
         } else {
-            bNew = true;
-            dev_id = id;
-            event_id = pgf->intval(0, 0);
-            dt = pgf->intval(0, 1);
+            int cnt = pgf->count();
+            if(cnt > 0) {
+                printf("New copy %s%d%s\n", col_y, id, col_e);
+                bNew = true;
+                dev_id = id;
+                event_id = pgf->intval(0, 0);
+                dt = pgf->intval(0, 1);
+            } else {
+                printf("No data for %s%d%s\n", col_r, id, col_e);
+            }
             pgf->free();
         }
     } else {
         sprintf(buff, "SELECT event_id, extract(epoch from dt at time zone 'Europe/Kiev') "
                       "FROM log.copy WHERE dev_id = %d", id);
         if(pga->exec(buff) != ExecStatusType::PGRES_TUPLES_OK) {
-            printf("can't read Copy(%s%d%s)\n", Copy::col_r, id, Copy::col_e);
+            printf("can't read Copy(%s%d%s)\n", col_r, id, col_e);
         } else {
             dev_id = id;
             event_id = pga->intval(0, 0);
@@ -87,6 +94,7 @@ Copy::Copy(int id, char* buf) {
             if(cnt == 0) {
                 dev_id = 0;
                 sprintf(error, "no fresh data");
+                printf("DEV %s%d%s %s%s%s", col_y, id, col_e, col_r, error, col_e);
             }
         }
         pgf->free();
@@ -106,13 +114,7 @@ void Copy::setTimeLimits() {
     Copy::getTime(dtEnd, sEnd);
 }
 
-bool Copy::valid() {
-    if(dev_id > 0) {
-        printf("Copy DEV=%s%d%s\n", col_y, dev_id, col_e);
-    }
-    sleep(1);
-    return dev_id > 0;
-}
+bool Copy::valid() { return dev_id > 0; }
 
 int *Copy::readDevices(Db *pgf, int *cnt) {
     int *ret;

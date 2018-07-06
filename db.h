@@ -9,6 +9,7 @@ class Db {
         bool valid();
         char *error();
         char *res_error();
+        int count();
 
         ExecStatusType exec(const char* sql);
         PGresult *prepare(const char *stmtName, const char *query, int nParams, const Oid *paramTypes);

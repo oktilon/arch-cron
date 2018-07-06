@@ -144,10 +144,9 @@ int main(int argc, char *argv[])
     Info("proceed devices:");
     for(int ix=0; ix < devices_count; ix++) {
         int id = devices[ix];
-        printf("run dev %s%d%s\n", Copy::col_b, id, Copy::col_e);
         Copy inf = Copy(id, buff);
-        printf("validate dev %s%d%s\n", Copy::col_b, id, Copy::col_e);
         if(!inf.valid()) continue;
+        printf("Copy DEV=%s%d%s\n", Copy::col_y, id, Copy::col_e);
     }
 
     sprintf(buff, "Finish%s", getTime(&tm_start, bufTm));
