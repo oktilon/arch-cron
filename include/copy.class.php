@@ -125,13 +125,70 @@ class Copy {
 
     public function verifyInputTable($inp) {
         global $PGA;
-
+        $d = $this->dev_id;
         $has = $PGA->prepare("SELECT COUNT(relname) FROM pg_catalog.pg_class
                                 WHERE relname = :i AND reltype > 0")
                     ->bind('i', $inp)
                     ->execute_scalar();
         if(!$has) {
-            echo "NO INPUTS TABLE $inp";
+            $a = explode("_", $inp);
+            $i = array_shift($a); // inputs
+            $i = array_shift($a); // dev
+            $norm = count($a) == 1;
+            $t = $a[0];
+            $i = implode('_', $a);
+            if($norm) {
+                $PGA->prepare("CREATE TABLE IF NOT EXISTS device_data.{$inp} " .
+                        "( CHECK (device_id = $d AND input_type= $t ), " .
+                        "PRIMARY KEY (input_id), " .
+                        "CONSTRAINT \"ext_device_id_{$d}_{$t}\" " .
+                            "FOREIGN KEY (device_id) REFERENCES devices (_id) " .
+                            "MATCH SIMPLE ON UPDATE NO ACTION ON DELETE NO ACTION," .
+                        "CONSTRAINT \"ext_events_id_{$d}_{$t}\" " .
+                            "FOREIGN KEY (event_id) REFERENCES device_data.events_{$d} (_id) " .
+                            "MATCH SIMPLE ON UPDATE NO ACTION ON DELETE CASCADE, " .
+                        "CONSTRAINT \"uk_{$inp}\" " .
+                            "UNIQUE (event_id, device_id, input_type)) " .
+                        "INHERITS (device_data.inputs);")->execute();
+                $PGA->prepare("GRANT SELECT ON TABLE device_data.{$inp} TO userviewer;")->execute();
+                $PGA->prepare("CREATE INDEX \"INPUTS_INPUT_ID_idx_{$d}_{$t}\" " .
+                            "ON device_data.{$inp} USING btree (input_id );")->execute();
+                $PGA->prepare("CREATE INDEX \"INPUTS_event_id_idx_{$d}_{$t}\" " .
+                            "ON device_data.{$inp} USING btree (event_id );")->execute();
+                $PGA->prepare("CREATE INDEX \"INPUTS_type_idx_{$d}_{$t}\" " .
+                            "ON device_data.{$inp} USING btree (input_type );")->execute();
+                $PGA->prepare("CREATE INDEX fki_ext_device_id_{$d}_{$t} " .
+                            "ON device_data.{$inp} USING btree (device_id );")->execute();
+                $PGA->prepare("CREATE INDEX fki_ext_events_id_{$d}_{$t} " .
+                            "ON device_data.{$inp} USING btree (event_id );")->execute();
+            } else {
+                $PGA->prepare("CREATE TABLE IF NOT EXISTS device_data.{$inp} " .
+                    "(  CHECK (device_id = $d AND input_type= $t ), " .
+                        "PRIMARY KEY (input_id), " .
+                        "CONSTRAINT \"ext_device_id_{$d}_{$i}\" " .
+                            "FOREIGN KEY (device_id) " .
+                            "REFERENCES devices (_id) " .
+                            "MATCH SIMPLE ON UPDATE NO ACTION ON DELETE CASCADE, " .
+                        "CONSTRAINT \"ext_events_id_{$d}_{$i}\" " .
+                            "FOREIGN KEY (event_id) " .
+                            "REFERENCES device_data.events_{$d} (_id) " .
+                            "MATCH SIMPLE ON UPDATE NO ACTION ON DELETE CASCADE, " .
+                        "CONSTRAINT \"uk_{$inp}\" " .
+                            "UNIQUE (event_id, device_id, input_type) " .
+                    ") " .
+                    "INHERITS (device_data.inputs );")->execute();
+                $PGA->prepare("GRANT SELECT ON TABLE device_data.{$inp} TO userviewer;")->execute();
+                $PGA->prepare("CREATE INDEX \"INPUTS_INPUT_ID_idx_{$d}_{$i}\" " .
+                            "ON device_data.{$inp} USING btree (input_id );")->execute();
+                $PGA->prepare("CREATE INDEX \"INPUTS_event_id_idx_{$d}_{$i}\" " .
+                            "ON device_data.{$inp} USING btree (event_id );")->execute();
+                $PGA->prepare("CREATE INDEX \"INPUTS_type_idx_{$d}_{$i}\" " .
+                            "ON device_data.{$inp} USING btree (input_type );")->execute();
+                $PGA->prepare("CREATE INDEX fki_ext_device_id_{$d}_{$i} " .
+                            "ON device_data.{$inp} USING btree (device_id );")->execute();
+                $PGA->prepare("CREATE INDEX fki_ext_events_id_{$d}_{$i} " .
+                            "ON device_data.{$inp} USING btree (event_id );")->execute();
+            }
             return;
         }
     }
