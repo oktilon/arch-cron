@@ -23,9 +23,7 @@ Db::Db(const char* srv) {
                         DB_PASS);
 }
 
-bool Db::valid() {
-    return PQstatus(pq) != CONNECTION_BAD;
-};
+bool Db::valid() { return PQstatus(pq) != CONNECTION_BAD; };
 
 
 // ExecStatusType::PGRES_COMMAND_OK
@@ -40,6 +38,9 @@ ExecStatusType Db::exec(const char* sql) {
     result = PQexec(pq, sql);
     return resultStatus();
 }
+
+char *Db::error() { return PQerrorMessage(pq); }
+char *Db::res_error() { return PQresultErrorMessage(result); }
 
 PGresult *Db::prepare(const char *stmtName, const char *query, int nParams, const Oid *paramTypes) {
     result = PQprepare(pq,
@@ -67,32 +68,16 @@ PGresult *Db::execPrepared(char *stmtName,
     return result;
 }
 
-ExecStatusType Db::resultStatus() {
-    return PQresultStatus(result);
-}
+ExecStatusType Db::resultStatus() { return PQresultStatus(result); }
 
-char *Db::resultStatusText() {
-    return PQresStatus(resultStatus());
-}
+char *Db::resultStatusText() { return PQresStatus(resultStatus()); }
 
-char *Db::error() {
-    return PQresultErrorMessage(result);
-}
+int Db::rows() { return PQntuples(result); }
 
-int Db::rows() {
-    return PQntuples(result);
-}
+char* Db::value(int row, int field) { return PQgetvalue(result, row, field); }
+int Db::intval(int row, int field) { return atoi(PQgetvalue(result, row, field)); }
 
-char* Db::value(int row, int field) {
-    return PQgetvalue(result, row, field);
-}
-int Db::intval(int row, int field) {
-    return atoi(PQgetvalue(result, row, field));
-}
-
-void Db::free() {
-    PQclear(result);
-}
+void Db::free() { PQclear(result); }
 
 void Db::init() {
     m_arch = new Db(DB_ARCH);

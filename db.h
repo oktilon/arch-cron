@@ -7,6 +7,9 @@ class Db {
 
         Db(const char* srv);
         bool valid();
+        char *error();
+        char *res_error();
+
         ExecStatusType exec(const char* sql);
         PGresult *prepare(const char *stmtName, const char *query, int nParams, const Oid *paramTypes);
         PGresult *execPrepared(char *stmtName,
@@ -17,7 +20,6 @@ class Db {
                                     int resultFormat);
         ExecStatusType resultStatus();
         char *resultStatusText();
-        char *error();
 
         int rows();
         void free();

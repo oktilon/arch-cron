@@ -36,58 +36,74 @@ Copy::Copy(int id, char* buf) {
     buff = buf;
     pga = Db::arch();
     pgf = Db::fast();
-    error = (char*)malloc(1);
+    error = (char*)malloc(50);
+    sBeg = (char*)malloc(20);
+    sEnd = (char*)malloc(20);
+
+    bool bNew = false;
 
 
     sprintf(buff, "SELECT COUNT(dev_id) FROM log.copy WHERE dev_id = %d", id);
     pga->exec(buff);
     if(pga->intval(0, 0) == 0) {
-        time_t t = time(NULL);
-        struct tm *ts;
-        char dt[50];
-        ts = localtime(&t);
-        strftime(dt, sizeof(dt), "%Y-%m-%d %X", ts);
+        printf("%sNew copy%s\n", Copy::col_y, Copy::col_e);
 
-        sprintf(buff, "SELECT * FROM log.copy WHERE dev_id = %d", id);
-        if(pga->exec(buff) != ExecStatusType::PGRES_TUPLES_OK) {
-            sprintf(buff, "SELECT _id, when1 FROM device_data.events_%d"
-                          "ORDER BY when1 ASC LIMIT 1", id);
-            if(pgf->exec(buff) != ExecStatusType::PGRES_TUPLES_OK) {
-                //self::$error = "init error {$PGF->error}";
-                return;
-            }
-            /*$dt = $old['when1'];
-            $this->dev_id   = $id;
-            $this->event_id = intval($old['_id']);
-            $this->dt       = new DateTime($dt);
-            $this->dt->modify('- 1 second');*/
+        sprintf(buff, "SELECT _id, extract(epoch from when1 at time zone 'Europe/Kiev') AS dt "
+                      "FROM device_data.events_%d "
+                      "ORDER BY when1 ASC LIMIT 1", id);
+        if(pgf->exec(buff) != ExecStatusType::PGRES_TUPLES_OK) {
+            sprintf(error, "init error");
+            printf("%scan't read%s events for %s%d%s\n", Copy::col_r, Copy::col_e,
+                    Copy::col_cy, id, Copy::col_e);
+            return;
         } else {
-            /*$dt = $inf['dt'];
-            $this->dev_id   = intval($inf['dev_id']);
-            $this->event_id = intval($inf['event_id']);
-            $this->dt       = new DateTime($dt);*/
+            bNew = true;
+            dev_id = id;
+            event_id = pgf->intval(0, 0);
+            dt = pgf->intval(0, 1);
+            pgf->free();
         }
+    } else {
+        sprintf(buff, "SELECT event_id, extract(epoch from dt at time zone 'Europe/Kiev') "
+                      "FROM log.copy WHERE dev_id = %d", id);
+        if(pga->exec(buff) != ExecStatusType::PGRES_TUPLES_OK) {
+            printf("can't read Copy(%s%d%s)\n", Copy::col_r, id, Copy::col_e);
+        } else {
+            dev_id = id;
+            event_id = pga->intval(0, 0);
+            dt = pga->intval(0, 1);
+        }
+        pga->free();
     }
-
-/*
-        $this->setTimeLimits($dt);
-
-        $cnt = $PGF->prepare("SELECT COUNT(_id) FROM device_data.events_{$id}
-                                WHERE when1 > :b")
-                    ->bind('b', $this->sBeg)
-                    ->execute_scalar();
-        if(!$cnt){
-            self::$error = 'no new data';
-            $this->dev_id = 0;
-        }*/
+    if(dev_id > 0) {
+        time_t t = dt;
+        if(bNew) t--;
+        char s[50];
+        Copy::getTime(t, s);
+        sprintf(buff, "SELECT COUNT(_id) FROM device_data.events_{$id}"
+                        "WHERE when1 > '%s'", s);
+        if(pgf->exec(buff) == ExecStatusType::PGRES_TUPLES_OK) {
+            int cnt = pgf->intval(0, 0);
+            if(cnt == 0) {
+                dev_id = 0;
+                sprintf(error, "no fresh data");
+            }
+        }
+        pgf->free();
+    }
+    setTimeLimits();
 };
 
-void Copy::setTimeLimits(char *dt) {
-    /*$this->dtEnd = new DateTime($dt);
-    $this->dtEnd->modify("+ 24 hours");
+Copy::~Copy() {
+    free(sBeg);
+    free(sEnd);
+    free(error);
+}
 
-    $this->sBeg = $this->dt->format('Y-m-d H:i:s');
-    $this->sEnd = $this->dtEnd->format('Y-m-d H:i:s');*/
+void Copy::setTimeLimits() {
+    Copy::getTime(dt, sBeg);
+    dtEnd = dt + 86400; // 24 hours = 1440 minutes
+    Copy::getTime(dtEnd, sEnd);
 }
 
 bool Copy::valid() {
@@ -169,6 +185,13 @@ void Copy::pidUnLock() {
             remove(pLockFile);
         }
     }
+}
+
+char *Copy::getTime(time_t t, char *buf) {
+    struct tm *ts;
+    ts = localtime(&t);
+    strftime(buf, sizeof(buf), "%Y-%m-%d %X", ts);
+    return buf;
 }
 
 time_t Copy::strtotime(const char *s) {

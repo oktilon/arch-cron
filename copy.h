@@ -36,12 +36,14 @@ class Copy {
         static const char* col_dw;
 
         Copy(int id, char* b);
+        ~Copy();
         bool valid();
-        void setTimeLimits(char *dt);
+        void setTimeLimits();
 
         static int *readDevices(Db *pgf, int *cnt);
         static char *pLockFile;
         static bool pidLock(const char *fName);
         static void pidUnLock();
+        static char *getTime(time_t t, char *buf);
         static time_t strtotime(const char *s);
 };
