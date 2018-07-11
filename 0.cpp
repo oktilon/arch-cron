@@ -51,6 +51,8 @@ int main(int argc, char *argv[])
         printf("MaxTime=%ld [%s]\n\n", tti, Copy::getTime(tti, bufTm));
     */
 
+    memset(buff, 0, 4000);
+    bool dev_list = false;
     for(int i = 0; i < argc; i++) {
         char *pa = argv[i];
         if(i == 0) {
@@ -65,27 +67,43 @@ int main(int argc, char *argv[])
         }
 
         if(strcmp(pa, "-d") == 0 ||
-           strcmp(pa, "--device") == 0) {
-            i++;
-            if(i < argc) {
-                dev = atoi(argv[i]);
-            }
+           strcmp(pa, "--devices") == 0) {
+            dev_list = true;
+            devices = (int*)malloc(sizeof(int));
             continue;
         }
-        printf("Usage %s%s%s [%s-s%s]\n"
+
+        if(dev_list) {
+            dev = atoi(argv[i]);
+            if(dev > 0) {
+                if(devices_count > 0) strcat(buff, ",");
+                sprintf(bufTm, "%d", dev);
+                strcat(buff, bufTm);
+                devices_count++;
+                devices = (int*)realloc(devices, devices_count*sizeof(int));
+                devices[devices_count-1] = dev;
+                continue;
+            }
+        }
+
+        printf("Usage %s%s%s [%s-s%s] [%s-d%s %sdev1 dev2 ...%s]\n"
                "  where : %s-s%s, %s--skip%s, %sskip%s - skip pg_dump/pg_restore public\n"
+               "          %s-d%s, %s--devices%s    - copy devices only from list\n"
                "          %s-h%s, %s--help%s, %shelp%s - show this help\n",
-            Copy::col_g, me, Copy::col_e, Copy::col_y, Copy::col_e,
+            Copy::col_g, me, Copy::col_e, Copy::col_y, Copy::col_e, Copy::col_y, Copy::col_e, Copy::col_m, Copy::col_e,
             Copy::col_y, Copy::col_e, Copy::col_y, Copy::col_e, Copy::col_y, Copy::col_e,
+            Copy::col_y, Copy::col_e, Copy::col_y, Copy::col_e,
             Copy::col_y, Copy::col_e, Copy::col_y, Copy::col_e, Copy::col_y, Copy::col_e);
         return 0;
     }
 
     const char *bs = skip ? Copy::col_g : Copy::col_r;
     const char *ts = skip ? "true" : "false";
-    const char *bd = dev > 0 ? Copy::col_g : Copy::col_r;
+    const char *bd = devices_count > 0 ? Copy::col_g : Copy::col_r;
 
-    printf("Test Run. pid=%d, dev=%s%d%s, skip=%s%s%s\n", pid, bd, dev, Copy::col_e, bs, ts, Copy::col_e);
+    if(devices_count == 0) sprintf(buff, "0");
+
+    printf("Copy Arch pid=%d, dev=%s%s%s, skip=%s%s%s\n", pid, bd, buff, Copy::col_e, bs, ts, Copy::col_e);
 
     if(!Copy::pidLock(LOCK_FILE)) {
         return 0;
@@ -140,10 +158,14 @@ int main(int argc, char *argv[])
     }
 
     // Read devices
-    Info("read devices...");
-    devices = Copy::readDevices(pgf, &devices_count);
+    if(devices_count > 0) {
+        sprintf(buff, "selected %d dev.%s", devices_count, getTime(&tm_mark, bufTm));
+    } else {
+        Info("read devices...");
+        devices = Copy::readDevices(pgf, &devices_count);
+        sprintf(buff, "readed %d dev.%s", devices_count, getTime(&tm_mark, bufTm));
+    }
 
-    sprintf(buff, "readed %d dev.%s", devices_count, getTime(&tm_mark, bufTm));
     Info(buff);
 
     for(int ix=0; ix < devices_count; ix++) {
@@ -186,7 +208,7 @@ int main(int argc, char *argv[])
             }
             Event *last = e > 1 ? events[--e] : NULL;
             inf.save(last);
-            sprintf(buff, "DEV %s%d%s [%s]%s",
+            sprintf(buff, " DEV %s%d%s [%s]%s",
                 Copy::col_y, id, Copy::col_e, inf.sBeg,
                 getTime(&tm_mark, bufTm));
             Info(buff);
