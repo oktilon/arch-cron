@@ -13,6 +13,9 @@
 
 std::regex reg1 ("(\033\\[([\\d\\;]+m))");
 
+// ALTER SEQUENCE "EVENTS__ID_seq" RESTART WITH 1;
+// ALTER SEQUENCE "INPUTS_INPUT_ID_seq" RESTART WITH 1;
+
 void Info(const char *msg) {
     printf("%s\n", msg);
     std::string pmsg (std::regex_replace(msg, reg1, "", std::regex_constants::match_default));
