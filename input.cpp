@@ -25,17 +25,20 @@ Input::Input(char* inp) {
 
 void Input::validate(char* buff) {
     Db* pga = Db::arch();
-
+    printf("Check arch for %s table ", txt);
     sprintf(buff, "SELECT COUNT(relname) FROM pg_catalog.pg_class "
                     "WHERE relname = '%s' AND reltype > 0", txt);
     pga->exec(buff);
     int i = pga->count();
+    printf("%d rows ", i);
     int has = i > 0 ? pga->intval(0, 0) : 0;
     pga->free();
+    printf("has = %d\n", has);
     if(has == 0) {
         char dt[50] = "";
         if(strcmp(e, "") == 0) {
             sprintf(dt, "%d_%d", i, t);
+            printf("Create %s dt=%s\n", txt, dt);
             sprintf(buff, "CREATE TABLE IF NOT EXISTS device_data.%s "
                     "( CHECK (device_id = %d AND input_type= %d ), "
                     "PRIMARY KEY (input_id), "
@@ -48,6 +51,7 @@ void Input::validate(char* buff) {
                     "CONSTRAINT \"uk_%s\" "
                         "UNIQUE (event_id, device_id, input_type)) "
                     "INHERITS (device_data.inputs);", txt, i, t, dt, dt, i, txt);
+            printf("SQL\n%s\n", buff);
             pga->exec(buff); pga->free();
 
             sprintf(buff, "GRANT SELECT ON TABLE device_data.%s TO userviewer;", txt);
@@ -74,6 +78,7 @@ void Input::validate(char* buff) {
             pga->exec(buff); pga->free();
         } else {
             sprintf(dt, "%d_%d%s", i, t, e);
+            printf("Create %s dt=%s\n", txt, dt);
             sprintf(buff, "CREATE TABLE IF NOT EXISTS device_data.%s "
                 "(  CHECK (device_id = %d AND input_type= %d ), "
                     "PRIMARY KEY (input_id), "
@@ -89,6 +94,7 @@ void Input::validate(char* buff) {
                         "UNIQUE (event_id, device_id, input_type) "
                 ") "
                 "INHERITS (device_data.inputs );", txt, i, t, dt, dt, i, txt);
+            printf("SQL\n%s\n", buff);
             pga->exec(buff); pga->free();
 
             sprintf(buff, "GRANT SELECT ON TABLE device_data.%s TO userviewer;", txt);
