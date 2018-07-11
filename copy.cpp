@@ -125,10 +125,24 @@ void Copy::setTimeLimits() {
 
 bool Copy::valid() { return dev_id > 0; }
 
-int *Copy::readDevices(Db *pgf, int *cnt) {
+int *Copy::readDevices(Db *pgf, Db *pga, int *cnt, bool fast) {
     int *ret;
+    int c = 0;
+    if(fast) {
+        pga->exec("SELECT dev_id FROM log.copy ORDER BY dt ASC LIMIT 200");
+        int c = pga->count();
+        if(c > 0) {
+            *cnt = c;
+            ret = (int*)malloc(sizeof(int) * (*cnt));
+            for(int i = 0; i < *cnt; i++) {
+                ret[i] = pga->intval(i, 0);
+            }
+            pga->free();
+            return ret;
+        }
+        pga->free();
+    }
     pgf->exec("SELECT _id FROM devices ORDER BY _id");
-    //pgf->exec("SELECT _id FROM devices WHERE _id > 3000 ORDER BY _id");
     if(pgf->resultStatus() == ExecStatusType::PGRES_TUPLES_OK) {
         *cnt = pgf->count();
         ret = (int*)malloc(sizeof(int) * (*cnt));

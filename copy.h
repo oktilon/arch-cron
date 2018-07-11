@@ -52,7 +52,7 @@ class Copy {
         bool endOfTime();
         void save(Event *last);
 
-        static int *readDevices(Db *pgf, int *cnt);
+        static int *readDevices(Db *pgf, Db *pga, int *cnt, bool fast);
         static char *pLockFile;
         static bool pidLock(const char *fName);
         static void pidUnLock();
