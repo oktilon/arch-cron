@@ -29,9 +29,9 @@ void Input::validate(char* buff) {
     sprintf(buff, "SELECT COUNT(relname) FROM pg_catalog.pg_class "
                     "WHERE relname = '%s' AND reltype > 0", txt);
     pga->exec(buff);
-    int i = pga->count();
-    printf("%d rows ", i);
-    int has = i > 0 ? pga->intval(0, 0) : 0;
+    int ii = pga->count();
+    printf("%d rows ", ii);
+    int has = ii > 0 ? pga->intval(0, 0) : 0;
     pga->free();
     printf("has = %d\n", has);
     if(has == 0) {
