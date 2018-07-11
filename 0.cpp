@@ -105,8 +105,10 @@ int main(int argc, char *argv[])
 
     printf("Copy Arch pid=%d, dev=%s%s%s, skip=%s%s%s\n", pid, bd, buff, Copy::col_e, bs, ts, Copy::col_e);
 
-    if(!Copy::pidLock(LOCK_FILE)) {
-        return 0;
+    if(devices_count == 0) {
+        if(!Copy::pidLock(LOCK_FILE)) {
+            return 0;
+        }
     }
 
     if(!skip) {
@@ -221,6 +223,7 @@ int main(int argc, char *argv[])
         }
     }
 
+    Copy::pidUnLock();
     sprintf(buff, "Finish%s", getTime(&tm_start, bufTm));
     Info(buff);
     return 0;
