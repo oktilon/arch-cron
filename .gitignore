@@ -8,3 +8,4 @@ config.php
 
 copy_fast
 config.h
+config_test.h
